@@ -64,3 +64,16 @@ def test_empty_doc(empty_spacy_doc):
     result = ke.yake(empty_spacy_doc)
     assert isinstance(result, list)
     assert len(result) == 0
+
+
+def test_return_spans(spacy_doc):
+    result1 = ke.textrank(spacy_doc, return_spans=True)
+    assert isinstance(result1, list)
+    assert isinstance(result1[0], tuple)
+    assert isinstance(result1[0][0], str)
+    assert isinstance(result1[0][1], tuple)
+    for phrase, (score, start, stop) in result1:
+        assert isinstance(score, float)
+        assert 0 <= start <= stop < len(spacy_doc)
+    result2 = ke.textrank(spacy_doc, return_spans=False)
+    assert result1 != result2

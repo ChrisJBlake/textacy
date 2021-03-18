@@ -1,5 +1,11 @@
 ## Changes
 
+### 0.10.1.1 (2021-03-18)
+
+#### Changed:
+
+- Added the `return_spans` keyword argument to `textacy.ke.textrank`, which returns the start and end position for each key phrase in the original document
+
 ### 0.10.1 (2020-08-29)
 
 #### New and Changed:

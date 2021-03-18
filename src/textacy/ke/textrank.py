@@ -18,7 +18,8 @@ def textrank(
     edge_weighting: str = "binary",
     position_bias: bool = False,
     topn: Union[int, float] = 10,
-) -> List[Tuple[str, float]]:
+    return_spans: bool = False,
+) -> Union[List[Tuple[str, float]], List[Tuple[str, Tuple[float, int, int]]]]:
     """
     Extract key terms from a document using the TextRank algorithm, or
     a variation thereof. For example:
@@ -48,9 +49,12 @@ def textrank(
             If an integer, represents the absolute number; if a float, value
             must be in the interval (0.0, 1.0], which is converted to an int by
             ``int(round(len(set(candidates)) * topn))``.
+        return_spans: If True, return the start and end index of the Span of each
+            key phrase alongside each term and score.
 
     Returns:
         Sorted list of top ``topn`` key terms and their corresponding TextRank ranking scores.
+        Additionally returns the start and end index of the key phrase spans if return_spans is True.
 
     References:
         - Mihalcea, R., & Tarau, P. (2004, July). TextRank: Bringing order into texts.
@@ -95,14 +99,20 @@ def textrank(
         graph, weight="weight", personalization=word_pos
     )
     # generate a list of candidate terms
-    candidates = _get_candidates(doc, normalize, include_pos)
+    candidates = _get_candidates(doc, normalize, include_pos, return_spans)
     if isinstance(topn, float):
         topn = int(round(len(set(candidates)) * topn))
     # rank candidates by aggregating constituent word scores
-    candidate_scores = {
-        " ".join(candidate): sum(word_scores.get(word, 0.0) for word in candidate)
-        for candidate in candidates
-    }
+    if return_spans:
+        candidate_scores = {
+            " ".join(candidate): (sum(word_scores.get(word, 0.0) for word in candidate), start, end)
+            for candidate, start, end in candidates
+        }
+    else:
+        candidate_scores = {
+            " ".join(candidate): sum(word_scores.get(word, 0.0) for word in candidate)
+            for candidate in candidates
+        }
     sorted_candidate_scores = sorted(
         candidate_scores.items(), key=operator.itemgetter(1, 0), reverse=True
     )
@@ -112,13 +122,15 @@ def textrank(
 
 
 def _get_candidates(
-    doc: Doc, normalize: Optional[Union[str, Callable]], include_pos: Optional[Set[str]],
-) -> Set[Tuple[str, ...]]:
+    doc: Doc, normalize: Optional[Union[str, Callable]], include_pos: Optional[Set[str]], return_spans: bool = False
+) -> Union[Set[Tuple[str, ...]], Set[Tuple[Tuple[str, ...], int, int]]]:
     """
     Get a set of candidate terms to be scored by joining the longest
     subsequences of valid words -- non-stopword and non-punct, filtered to
     nouns, proper nouns, and adjectives if ``doc`` is POS-tagged -- then
-    normalized into strings.
+    normalized into strings. If return_spans is True, returns a tuple consisting of a tuple of the
+    constituent words, the start and end indices of the keyphrase span in ``doc``.
+    Otherwise, returns a set of tuples consisting of all the constituent tokens.
     """
 
     def _is_valid_tok(tok):
@@ -127,6 +139,10 @@ def _get_candidates(
         )
 
     candidates = ke_utils.get_longest_subsequence_candidates(doc, _is_valid_tok)
-    return {
-        tuple(ke_utils.normalize_terms(candidate, normalize)) for candidate in candidates
-    }
+    normalized_candidates = set()
+    for candidate in candidates:
+        terms = tuple(ke_utils.normalize_terms(candidate, normalize))
+        if return_spans:
+            terms = (terms, candidate[0].i, candidate[-1].i)
+        normalized_candidates.add(terms)
+    return normalized_candidates
